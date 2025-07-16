@@ -1,0 +1,33 @@
+[
+  {
+    "_id": "886938c6",
+    "title": "class 1",
+    "columns": [
+      "Name",
+      "price"
+    ],
+    "timestamp": "2025-07-16T22:28:31.596431",
+    "rows": [
+      {
+        "Name": "john",
+        "price": 189
+      },
+      {
+        "Name": "mani",
+        "price": 213
+      },
+      {
+        "Name": "praveen",
+        "price": 213
+      },
+      {
+        "Name": "gowtham",
+        "price": 543
+      },
+      {
+        "Name": "boopathi",
+        "price": 98
+      }
+    ]
+  }
+]
