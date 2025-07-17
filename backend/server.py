@@ -150,12 +150,38 @@ def delete_attendance_entry(project_id, entry_id):
     write_json(att_file, new_data)
     return jsonify({"status": "deleted"})
 
-# edit
 @app.route("/attendance/<project_id>/<entry_id>", methods=["PUT"])
 def edit_attendance_entry(project_id, entry_id):
     data = request.get_json()
-    print(data)
+    title = data.get("title")
+    columns = data.get("columns")
+    rows = data.get("rows")
+
+    if not (title and columns and rows):
+        return jsonify({"error": "Missing title, columns or rows"}), 400
+
+    att_file = os.path.join(ATTENDANCE_DIR, f"{project_id}.json")
+    all_data = read_json(att_file)
+
+    found = False
+    for i, entry in enumerate(all_data):
+        if entry.get("_id") == entry_id:
+            all_data[i] = {
+                "_id": entry_id,
+                "title": title,
+                "columns": columns,
+                "timestamp": datetime.now().isoformat(),
+                "rows": rows
+            }
+            found = True
+            break
+
+    if not found:
+        return jsonify({"error": "Entry not found"}), 404
+
+    write_json(att_file, all_data)
     return jsonify({"status": "updated"})
+
 
 if __name__ == "__main__":
     now = datetime.now()

@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
 
 export default function ProjectPage() {
   const { id } = useParams();
+  const fileInputRef = useRef(null);
+
   const [file, setFile] = useState(null);
   const [tableData, setTableData] = useState([]);
   const [columns, setColumns] = useState([]);
@@ -15,11 +17,13 @@ export default function ProjectPage() {
   const [editingEntry, setEditingEntry] = useState(null);
   const [projectName, setProjectName] = useState("");
 
-  const uploadFile = async () => {
-    if (!file) return alert("Please select a file");
+  const uploadFile = async (selectedFile) => {
+    if (!selectedFile) return alert("Please select a file");
+
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("file", selectedFile);
     setLoading(true);
+
     try {
       const res = await axios.post(`http://localhost:5000/upload/${id}`, formData);
       if (res.data.status === "ok") {
@@ -32,6 +36,7 @@ export default function ProjectPage() {
       console.error("Upload error", err);
       alert("Upload error");
     }
+
     setLoading(false);
   };
 
@@ -64,6 +69,27 @@ export default function ProjectPage() {
     }
     setSaving(false);
   };
+
+  const updateEditedEntry = async () => {
+  if (!editingEntry) return;
+  setSaving(true);
+
+  try {
+    await axios.put(`http://localhost:5000/attendance/${id}/${editingEntry._id}`, {
+      title: editingEntry.title,
+      columns: editingEntry.columns,
+      rows: editingEntry.rows,
+    });
+    resetForm();
+    fetchSavedData();
+  } catch (err) {
+    console.error("Update failed", err);
+    alert("Update failed");
+  }
+
+  setSaving(false);
+};
+
 
   const fetchSavedData = async () => {
     try {
@@ -115,6 +141,12 @@ export default function ProjectPage() {
     setTitle("");
     setSelectedCols([]);
     setEditingEntry(null);
+    setFile(null);
+    setTableData([]);
+    setColumns([]);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   useEffect(() => {
@@ -124,62 +156,129 @@ export default function ProjectPage() {
 
   return (
     <div className="p-4 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Project: {projectName}</h1>
+      <div className="flex items-center justify-between mb-6 gap-4">
+        <span className="text-2xl font-bold">{projectName}</span>
 
-      <div className="mb-4">
-        <input type="file" onChange={(e) => setFile(e.target.files[0])} />
-        <button
-          className="ml-2 bg-blue-600 text-white px-4 py-2 rounded"
-          onClick={uploadFile}
-          disabled={loading}
-        >
-          {loading ? "Uploading..." : "Upload Excel"}
-        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          onChange={(e) => {
+            const selectedFile = e.target.files[0];
+            if (selectedFile) {
+              setFile(selectedFile);
+              uploadFile(selectedFile);
+            }
+          }}
+          className="block text-sm text-gray-500 file:mr-4 file:py-2 file:px-4
+                     file:rounded-full file:border-0
+                     file:text-sm file:font-semibold
+                     file:bg-blue-600 file:text-white
+                     hover:file:bg-blue-700 cursor-pointer"
+        />
       </div>
 
-      {columns.length > 0 && (
-        <div className="bg-gray-100 p-4 rounded mb-6">
-          <h2 className="text-lg font-semibold mb-2">
-            {editingEntry ? "Edit Attendance Group" : "Select Columns"}
-          </h2>
+      {/* Edit/Add Modal */}
+      {(columns.length > 0 || editingEntry) && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg font-semibold mb-4">
+              {editingEntry ? "Edit Attendance Group" : "Upload & Save Attendance"}
+            </h2>
 
-          <div className="flex flex-wrap gap-4 mb-4">
-            {columns.map((col) => (
-              <label key={col} className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={selectedCols.includes(col)}
-                  onChange={() => toggleColumn(col)}
-                />
-                <span>{col}</span>
-              </label>
-            ))}
+            <div className="flex flex-wrap gap-4 mb-4">
+              {columns.map((col) => (
+                <label key={col} className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedCols.includes(col)}
+                    onChange={() => toggleColumn(col)}
+                    disabled={editingEntry}
+                  />
+                  <span>{col}</span>
+                </label>
+              ))}
+            </div>
+
+            <input
+              type="text"
+              placeholder="Enter title"
+              className="border px-3 py-2 rounded w-full mb-3"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              disabled={editingEntry}
+            />
+
+            {/* Editable table if editing */}
+            {editingEntry && (
+              <div className="overflow-auto border rounded mb-4">
+                <table className="w-full border text-sm">
+                  <thead>
+                    <tr>
+                      {editingEntry.columns.map((col) => (
+                        <th key={col} className="border p-2 bg-gray-200">
+                          {col}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {editingEntry.rows.map((row, rowIndex) => (
+                      <tr key={rowIndex}>
+                        {editingEntry.columns.map((col, colIndex) => {
+                          const isFirstCol = colIndex === 0;
+                          return (
+                            <td key={col + rowIndex} className="border p-2">
+                              {isFirstCol ? (
+                                <span>{row[col]}</span>
+                              ) : (
+                                <input
+                                  type="text"
+                                  className="border px-1 py-1 w-full"
+                                  value={row[col] ?? ""}
+                                  onChange={(e) =>
+                                    updateCell(rowIndex, col, e.target.value)
+                                  }
+                                />
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              {editingEntry ? (
+                <button
+                  onClick={updateEditedEntry}
+                  className="bg-green-600 text-white px-4 py-2 rounded"
+                  disabled={saving}
+                >
+                  {saving ? "Updating..." : "Update"}
+                </button>
+              ) : (
+                <button
+                  onClick={saveSelectedColumns}
+                  className="bg-blue-600 text-white px-4 py-2 rounded"
+                  disabled={saving}
+                >
+                  {saving ? "Saving..." : "Save"}
+                </button>
+              )}
+              <button
+                onClick={resetForm}
+                className="bg-gray-500 text-white px-4 py-2 rounded"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
-
-          <input
-            type="text"
-            placeholder="Enter title"
-            className="border px-3 py-2 rounded w-1/2"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-          <button
-            onClick={saveSelectedColumns}
-            className="ml-3 bg-green-600 text-white px-4 py-2 rounded"
-            disabled={saving}
-          >
-            {saving ? "Saving..." : editingEntry ? "Update" : "Save"}
-          </button>
-          {editingEntry && (
-            <button
-              onClick={resetForm}
-              className="ml-2 bg-gray-500 text-white px-4 py-2 rounded"
-            >
-              Cancel
-            </button>
-          )}
         </div>
       )}
+
 
       {savedData.length > 0 && (
         <div>
